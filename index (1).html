@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antreiber-Test (Transaktionsanalyse)</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 20px 10px;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+      background: var(--card-bg);
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+      border: 1px solid var(--border);
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+      color: #0f172a;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .progress-bar-container {
+      background: var(--border);
+      height: 8px;
+      border-radius: 999px;
+      margin-top: 1.5rem;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      background: var(--primary);
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .question-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+      border: 1px solid var(--border);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .question-card.answered {
+      border-color: #cbd5e1;
+      background: #fafafa;
+    }
+
+    .question-header {
+      display: flex;
+      align-items: baseline;
+      margin-bottom: 0.75rem;
+    }
+
+    .q-num {
+      font-weight: 700;
+      color: var(--primary);
+      margin-right: 0.75rem;
+      font-size: 0.95rem;
+      min-width: 28px;
+    }
+
+    .q-text {
+      font-size: 1rem;
+      font-weight: 500;
+      color: #1e293b;
+    }
+
+    .options-group {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    @media (max-width: 640px) {
+      .options-group {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .option-btn {
+      position: relative;
+    }
+
+    .option-btn input {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .option-btn label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0.6rem 0.4rem;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      min-height: 52px;
+      transition: all 0.15s ease;
+      background: #fff;
+    }
+
+    .option-btn .val {
+      font-weight: bold;
+      font-size: 0.95rem;
+      margin-bottom: 2px;
+    }
+
+    .option-btn input:checked + label {
+      background: #eff6ff;
+      border-color: var(--primary);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .btn-submit-container {
+      text-align: center;
+      margin: 2.5rem 0 4rem;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      font-size: 1.05rem;
+      font-weight: 600;
+      padding: 0.9rem 2.2rem;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    /* Results View */
+    #results-section {
+      display: none;
+      animation: fadeIn 0.4s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chart-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 2rem;
+      border: 1px solid var(--border);
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    }
+
+    .chart-container {
+      position: relative;
+      height: 380px;
+      width: 100%;
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .antreiber-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 1.5rem;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .antreiber-card.high {
+      border-left: 6px solid var(--danger);
+    }
+
+    .antreiber-card.medium {
+      border-left: 6px solid var(--warning);
+    }
+
+    .antreiber-card.low {
+      border-left: 6px solid var(--success);
+    }
+
+    .card-header-flex {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.8rem;
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .badge {
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+    }
+
+    .badge-high { background: #fee2e2; color: #b91c1c; }
+    .badge-medium { background: #fef3c7; color: #b45309; }
+    .badge-low { background: #d1fae5; color: #047857; }
+
+    .permission-box {
+      background: #eff6ff;
+      border-left: 4px solid var(--primary);
+      padding: 0.85rem 1.1rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+      font-style: italic;
+      color: #1e3a8a;
+    }
+
+    .meta-box {
+      font-size: 0.9rem;
+      margin-top: 0.6rem;
+    }
+
+    .meta-box strong {
+      color: #334155;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div id="survey-section">
+    <header>
+      <h1>Antreiber-Test (Transaktionsanalyse)</h1>
+      <p>Entdecke deine inneren Handlungsmuster. Beantworte alle 25 Aussagen spontan und ehrlich auf einer Skala von 1 (Trifft gar nicht zu) bis 5 (Trifft voll zu).</p>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </header>
+
+    <form id="antreiberForm">
+      <div id="questionsContainer"></div>
+
+      <div class="btn-submit-container">
+        <button type="submit" class="btn-primary" id="submitBtn">Auswertung berechnen</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="results-section">
+    <header>
+      <h1>Dein Antreiber-Profil</h1>
+      <p>Hier ist die visuelle und inhaltliche Auswertung deiner fünf inneren Antreiber.</p>
+    </header>
+
+    <div class="chart-card">
+      <h2 style="font-size: 1.15rem; margin-bottom: 1rem; color: #334155;">Ergebnisübersicht (Punkte von 5 bis 25)</h2>
+      <div class="chart-container">
+        <canvas id="antreiberChart"></canvas>
+      </div>
+    </div>
+
+    <div class="details-grid" id="detailsGrid"></div>
+
+    <div class="btn-submit-container">
+      <button class="btn-primary" onclick="window.location.reload();">Test wiederholen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 1. Definition der 25 Fragen & Zuordnung
+  const items = [
+    { id: 1, text: "Wenn ich eine Arbeit mache, dann mache ich sie gründlich und fehlerfrei.", category: "PERFEKT" },
+    { id: 2, text: "Ich werde ungeduldig, wenn jemand langsam spricht oder trödelt.", category: "SCHNELL" },
+    { id: 3, text: "Es fällt mir schwer, eine Bitte abzuschlagen oder Nein zu sagen.", category: "RECHT" },
+    { id: 4, text: "Ich ziehe Dinge auch dann durch, wenn sie sehr anstrengend oder mühsam sind.", category: "STRENG_AN" },
+    { id: 5, text: "Eigene Schwächen oder Gefühle zeige ich vor anderen nur sehr ungern.", category: "STARK" },
+    { id: 6, text: "Ich habe oft das Gefühl, dass mir die Zeit davonläuft und ich mich beeilen muss.", category: "SCHNELL" },
+    { id: 7, text: "Ich kontrolliere Unterlagen oder Ergebnisse lieber noch ein weiteres Mal, um sicherzugehen.", category: "PERFEKT" },
+    { id: 8, text: "Ich spüre schnell, was andere von mir erwarten, und versuche dem zu entsprechen.", category: "RECHT" },
+    { id: 9, text: "Ich mache persönliche Probleme am liebsten ganz allein mit mir aus.", category: "STARK" },
+    { id: 10, text: "Ein Erfolg zählt für mich erst dann richtig, wenn man hart dafür gekämpft hat.", category: "STRENG_AN" },
+    { id: 11, text: "Es fällt mir schwer, Leerlauf auszuhalten; ich muss immer etwas Produktives tun.", category: "SCHNELL" },
+    { id: 12, text: "Mir ist wichtig, dass alle in einer Gruppe zufrieden sind, auch wenn ich dafür zurückstecke.", category: "RECHT" },
+    { id: 13, text: "Bei meinen Aufgaben lege ich die Messlatte für Qualität extrem hoch an.", category: "PERFEKT" },
+    { id: 14, text: "Ich beiße die Zähne zusammen und funktioniere weiter, auch wenn ich erschöpft bin.", category: "STARK" },
+    { id: 15, text: "Wenn mir etwas zu leicht fällt, habe ich das Gefühl, dass es noch nicht gut genug ist.", category: "STRENG_AN" },
+    { id: 16, text: "Ich unterbreche andere im Gespräch manchmal oder vollende deren Sätze im Kopf.", category: "SCHNELL" },
+    { id: 17, text: "Wenn Fehler passieren, ärgere ich mich maßlos über meine eigene Unachtsamkeit.", category: "PERFEKT" },
+    { id: 18, text: "Kritik an meiner Arbeit nehme ich oft sehr persönlich und mache mir Vorwürfe.", category: "RECHT" },
+    { id: 19, text: "Um Hilfe zu bitten, fällt mir schwer, weil ich niemandem zur Last fallen möchte.", category: "STARK" },
+    { id: 20, text: "Ich starte oft viele Dinge gleichzeitig und setze mich selbst unter Zeitdruck.", category: "SCHNELL" },
+    { id: 21, text: "Halbe Sachen oder 80%-Lösungen sind für mich unbefriedigend und inakzeptabel.", category: "PERFEKT" },
+    { id: 22, text: "Selbst bei Routinetätigkeiten neige ich dazu, den komplizierten, mühsameren Weg zu wählen.", category: "STRENG_AN" },
+    { id: 23, text: "Ich versuche Konflikte und Meinungsverschiedenheiten um jeden Preis zu vermeiden.", category: "RECHT" },
+    { id: 24, text: "Ich zeige nach außen hin Gelassenheit und Härte, selbst wenn es mir innerlich nicht gut geht.", category: "STARK" },
+    { id: 25, text: "Ich gebe selten auf, selbst wenn ein Projekt bereits zur zähen Qual geworden ist.", category: "STRENG_AN" }
+  ];
+
+  // 2. Metadaten der Antreiber
+  const antreiberMeta = {
+    PERFEKT: {
+      name: "Sei perfekt!",
+      color: "#3b82f6",
+      erlauber: "„Ich bin wertvoll und gut genug, so wie ich bin – auch wenn Fehler passieren. 80 % reichen oft völlig aus.“",
+      staerken: "Hohe Sorgfalt, Gewissenhaftigkeit, Qualitätsbewusstsein, präzise Arbeitsweise.",
+      risiken: "Detailverliebtheit, Verzögerungen, Delegationsschwierigkeiten, hoher Selbstoptimierungsdruck.",
+      tipp: "Setze dir feste Deadlines und übe bewusst das 'Gut-Genug'-Prinzip."
+    },
+    SCHNELL: {
+      name: "Mach schnell!",
+      color: "#f59e0b",
+      erlauber: "„Ich darf mir Zeit nehmen, Tempo herausnehmen und Pausen machen. Gründlichkeit geht vor Hast.“",
+      staerken: "Hohes Arbeitstempo, Entschlusskraft, Agilität, effiziente Krisenbewältigung.",
+      risiken: "Flüchtigkeitsfehler, innere Rastlosigkeit, Ungeduld mit Teammitgliedern, Atemlosigkeit.",
+      tipp: "Plane zwischen Terminen 10 Minuten echte Pufferzeit ohne Bildschirm ein."
+    },
+    RECHT: {
+      name: "Mach es recht!",
+      color: "#ec4899",
+      erlauber: "„Ich darf meine eigenen Bedürfnisse wichtig nehmen und Nein sagen. Ein Nein zu anderen ist ein Ja zu mir selbst.“",
+      staerken: "Ausgeprägte Empathie, Hilfsbereitschaft, Teamorientierung, gutes Gespür für Stimmungen.",
+      risiken: "Schwierigkeiten bei der Abgrenzung, Überlastung durch fremde Aufgaben, Konfliktscheue.",
+      tipp: "Erbitten Sie sich bei Anfragen stets 24 Stunden Bedenkzeit, bevor du zusagst."
+    },
+    STRENG_AN: {
+      name: "Streng dich an!",
+      color: "#8b5cf6",
+      erlauber: "„Dinge dürfen leicht von der Hand gehen und Freude machen. Erfolg darf sich mühelos anfühlen.“",
+      staerken: "Großes Durchhaltevermögen, Zähigkeit, hohes Engagement bei komplexen Aufgaben.",
+      risiken: "Verkomplizieren einfacher Abläufe, Unfähigkeit Erfolge zu genießen, ständiges 'Kämpfen'.",
+      tipp: "Frage dich vor jeder Aufgabe: 'Wie sähe die unkomplizierteste Lösung aus?'"
+    },
+    STARK: {
+      name: "Sei stark!",
+      color: "#10b981",
+      erlauber: "„Ich darf Gefühle und Verletzlichkeit zeigen. Ich darf vertrauen und andere um Unterstützung bitten.“",
+      staerken: "Hohe Belastbarkeit, Ruhe in Ausnahmesituationen, Unabhängigkeit, Krisenfestigkeit.",
+      risiken: "Emotionale Distanz, Verbergen von Überlastung bis zum Zusammenbruch, Scheu vor Hilfe.",
+      tipp: "Delegiere gezielt eine Aufgabe pro Woche oder sprich offen aus, wenn etwas belastend ist."
+    }
+  };
+
+  const scaleLabels = [
+    { val: 1, label: "Trifft gar nicht zu" },
+    { val: 2, label: "Trifft wenig zu" },
+    { val: 3, label: "Trifft teilweise zu" },
+    { val: 4, label: "Trifft meistens zu" },
+    { val: 5, label: "Trifft voll zu" }
+  ];
+
+  // 3. Formular rendern
+  const container = document.getElementById("questionsContainer");
+  const answeredSet = new Set();
+
+  items.forEach((q, index) => {
+    const card = document.createElement("div");
+    card.className = "question-card";
+    card.id = `q-card-${q.id}`;
+
+    let optionsHtml = "";
+    scaleLabels.forEach(opt => {
+      optionsHtml += `
+        <div class="option-btn">
+          <input type="radio" name="q_${q.id}" id="q_${q.id}_${opt.val}" value="${opt.val}" required onchange="handleAnswer(${q.id})">
+          <label for="q_${q.id}_${opt.val}">
+            <span class="val">${opt.val}</span>
+            <span>${opt.label}</span>
+          </label>
+        </div>
+      `;
+    });
+
+    card.innerHTML = `
+      <div class="question-header">
+        <span class="q-num">${index + 1}.</span>
+        <span class="q-text">${q.text}</span>
+      </div>
+      <div class="options-group">
+        ${optionsHtml}
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  window.handleAnswer = function(questionId) {
+    answeredSet.add(questionId);
+    document.getElementById(`q-card-${questionId}`).classList.add("answered");
+    const progress = (answeredSet.size / items.length) * 100;
+    document.getElementById("progressBar").style.width = `${progress}%`;
+  };
+
+  // 4. Auswertung berechnen & anzeigen
+  document.getElementById("antreiberForm").addEventListener("submit", function(e) {
+    e.preventDefault();
+
+    if (answeredSet.size < items.length) {
+      alert("Bitte beantworte alle 25 Fragen, bevor du die Auswertung berechnest.");
+      return;
+    }
+
+    const formData = new FormData(this);
+    const scores = { PERFEKT: 0, SCHNELL: 0, RECHT: 0, STRENG_AN: 0, STARK: 0 };
+
+    items.forEach(q => {
+      const val = parseInt(formData.get(`q_${q.id}`), 10);
+      scores[q.category] += val;
+    });
+
+    // Ansicht wechseln
+    document.getElementById("survey-section").style.display = "none";
+    document.getElementById("results-section").style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    // Chart rendern
+    renderChart(scores);
+
+    // Detail-Karten rendern
+    renderDetails(scores);
+  });
+
+  function getLevel(score) {
+    if (score >= 19) return { key: "high", text: "Stark ausgeprägt (Stressfalle)", badgeClass: "badge-high" };
+    if (score >= 13) return { key: "medium", text: "Moderat (Gesunde Ressource)", badgeClass: "badge-medium" };
+    return { key: "low", text: "Gering ausgeprägt", badgeClass: "badge-low" };
+  }
+
+  function renderChart(scores) {
+    const ctx = document.getElementById("antreiberChart").getContext("2d");
+    const labels = Object.keys(scores).map(key => antreiberMeta[key].name);
+    const dataValues = Object.keys(scores).map(key => scores[key]);
+    const bgColors = Object.keys(scores).map(key => antreiberMeta[key].color);
+
+    new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [{
+          label: "Erreichte Punkte (5 - 25)",
+          data: dataValues,
+          backgroundColor: bgColors,
+          borderRadius: 8,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            min: 0,
+            max: 25,
+            ticks: { stepSize: 5 },
+            grid: { color: "#f1f5f9" }
+          },
+          x: {
+            grid: { display: false }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              afterLabel: function(context) {
+                const score = context.raw;
+                return getLevel(score).text;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function renderDetails(scores) {
+    const grid = document.getElementById("detailsGrid");
+    grid.innerHTML = "";
+
+    // Sortieren: Höchste Scores zuerst
+    const sortedKeys = Object.keys(scores).sort((a, b) => scores[b] - scores[a]);
+
+    sortedKeys.forEach(key => {
+      const score = scores[key];
+      const meta = antreiberMeta[key];
+      const level = getLevel(score);
+
+      const card = document.createElement("div");
+      card.className = `antreiber-card ${level.key}`;
+      card.innerHTML = `
+        <div class="card-header-flex">
+          <div class="card-title" style="color: ${meta.color}">${meta.name}</div>
+          <div>
+            <span style="font-weight: bold; font-size: 1.1rem; margin-right: 8px;">${score} / 25</span>
+            <span class="badge ${level.badgeClass}">${level.text}</span>
+          </div>
+        </div>
+        
+        <div class="permission-box">
+          <strong>Erlauber:</strong> ${meta.erlauber}
+        </div>
+
+        <div class="meta-box">
+          <strong>Stärken als Ressource:</strong> ${meta.staerken}
+        </div>
+        <div class="meta-box">
+          <strong>Risiko unter Druck:</strong> ${meta.risiken}
+        </div>
+        <div class="meta-box" style="margin-top: 0.5rem; color: #1e293b;">
+          <strong>Konkreter Impuls:</strong> ${meta.tipp}
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  }
+</script>
+
+</body>
+</html>
